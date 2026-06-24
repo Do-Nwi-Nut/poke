@@ -59,7 +59,7 @@ DECOR_POKEMON_IDS = [1, 4, 7, 25, 39, 52, 54, 104, 113, 131, 133, 143, 152, 155,
 # ============================================================
 if "score_df" not in st.session_state:
     st.session_state.score_df = pd.DataFrame(
-        {"라운드": [1], **{team: [0] for team in TEAM_NAMES}}
+        {team: [0] for team in TEAM_NAMES}, index=pd.Index([1], name="라운드")
     )
 
 if "prev_totals" not in st.session_state:
@@ -373,47 +373,40 @@ st.markdown(
     """<h3 style="font-family:'Baloo 2',sans-serif; color:#3B3A45;">📝 라운드별 점수 입력</h3>""",
     unsafe_allow_html=True,
 )
-st.caption("표 아래 ➕ 버튼으로 라운드(행)를 추가하면 번호가 자동으로 채워지고, 점수를 입력하면 위 보드에 바로 합산돼요.")
+st.caption("표 하단 ➕ 버튼으로 라운드(행)를 추가하면 번호가 자동으로 이어지고, 점수를 입력하면 위 보드에 바로 합산돼요.")
 
 column_config = {
-    "라운드": st.column_config.NumberColumn(
-        "라운드",
-        disabled=True,
+    team: st.column_config.NumberColumn(
+        f"{TEAMS[team]['type_kr'].split()[0]} · {team}",
+        step=1,
         format="%d",
-    ),
-    **{
-        team: st.column_config.NumberColumn(
-            f"{TEAMS[team]['type_kr'].split()[0]} · {team}",
-            step=1,
-            format="%d",
-        )
-        for team in TEAM_NAMES
-    },
+    )
+    for team in TEAM_NAMES
 }
 
 edited_df = st.data_editor(
     st.session_state.score_df,
     column_config=column_config,
-    column_order=["라운드"] + TEAM_NAMES,
     num_rows="dynamic",
     use_container_width=True,
-    hide_index=True,
+    hide_index=False,
     key="score_table_editor",
 )
 
-# 결측값(새 행 추가 시 NaN) 보정 + 라운드 번호 항상 1부터 순서대로 자동 채움
-edited_df = edited_df.reset_index(drop=True)
-for team in TEAM_NAMES:
-    edited_df[team] = edited_df[team].fillna(0).astype(int)
-edited_df["라운드"] = range(1, len(edited_df) + 1)
-edited_df = edited_df[["라운드"] + TEAM_NAMES]
-
+# 편집 결과를 그대로 저장 (인덱스/타입을 매번 새로 만들면 입력 중인 값이
+# 초기화되어 깜빡이거나 한 번 더 입력해야 반영되는 문제가 생기므로,
+# 원본 구조는 건드리지 않고 계산용 복사본만 따로 만든다)
 st.session_state.score_df = edited_df
+
+# 합계 계산용 복사본 (원본은 그대로 두고 여기서만 결측값 보정)
+calc_df = edited_df.copy()
+for team in TEAM_NAMES:
+    calc_df[team] = calc_df[team].fillna(0)
 
 # ============================================================
 # 총점 계산 (표 입력값 기준으로 즉시 반영)
 # ============================================================
-new_totals = {team: int(edited_df[team].sum()) for team in TEAM_NAMES}
+new_totals = {team: int(calc_df[team].sum()) for team in TEAM_NAMES}
 
 increased_teams = [
     team for team in TEAM_NAMES
@@ -481,7 +474,7 @@ for i, (team, total) in enumerate(ranking):
 st.write("")
 if st.button("🔄 전체 초기화", key="reset_btn"):
     st.session_state.score_df = pd.DataFrame(
-        {"라운드": [1], **{team: [0] for team in TEAM_NAMES}}
+        {team: [0] for team in TEAM_NAMES}, index=pd.Index([1], name="라운드")
     )
     if "score_table_editor" in st.session_state:
         del st.session_state["score_table_editor"]
