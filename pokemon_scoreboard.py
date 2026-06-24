@@ -129,8 +129,8 @@ st.markdown(
     .trainer-card {
         --glow: #ffffff66;
         position: relative;
-        border-radius: 22px;
-        padding: 18px 14px 14px 14px;
+        border-radius: 26px;
+        padding: 22px 14px 18px 14px;
         text-align: center;
         background: linear-gradient(160deg, #FFFFFFE0, #FFFFFFB0);
         border: 1px solid rgba(0,0,0,0.06);
@@ -164,7 +164,7 @@ st.markdown(
         font-weight: 700;
     }
     .trainer-card .sprite-wrap {
-        width: 150px; height: 150px;
+        width: 220px; height: 220px;
         margin: 6px auto 2px auto;
         border-radius: 50%;
         background: radial-gradient(circle, var(--card-bg) 0%, transparent 72%);
@@ -172,7 +172,7 @@ st.markdown(
         animation: pulseGlow 2.4s ease-in-out infinite;
     }
     .trainer-card img.sprite {
-        width: 132px; height: 132px;
+        width: 200px; height: 200px;
         image-rendering: pixelated;
         animation: floaty 2.8s ease-in-out infinite;
     }
@@ -188,7 +188,7 @@ st.markdown(
     .trainer-card .score-num {
         font-family: 'Space Mono', monospace;
         font-weight: 700;
-        font-size: 2.7rem;
+        font-size: 3.2rem;
         color: var(--card-accent);
         text-shadow: 0 0 16px var(--glow);
         animation: countPulse 0.4s ease-out;
@@ -356,13 +356,24 @@ if st.session_state.celebrate:
 st.write("")
 
 # ============================================================
+# 합산 점수 보드 (표보다 위에 위치, 표 입력값을 즉시 반영)
+# ============================================================
+st.markdown(
+    """<h3 style="font-family:'Baloo 2',sans-serif; color:#3B3A45;">📋 합산 점수 보드</h3>""",
+    unsafe_allow_html=True,
+)
+score_board_container = st.container()
+
+st.write("")
+
+# ============================================================
 # 점수 입력 표 (라운드별 행, 팀별 열) — 흰 배경, 라운드 번호 자동
 # ============================================================
 st.markdown(
     """<h3 style="font-family:'Baloo 2',sans-serif; color:#3B3A45;">📝 라운드별 점수 입력</h3>""",
     unsafe_allow_html=True,
 )
-st.caption("표 아래 ➕ 버튼으로 라운드(행)를 추가하면 번호가 자동으로 채워지고, 점수를 입력하면 바로 합산돼요.")
+st.caption("표 아래 ➕ 버튼으로 라운드(행)를 추가하면 번호가 자동으로 채워지고, 점수를 입력하면 위 보드에 바로 합산돼요.")
 
 column_config = {
     team: st.column_config.NumberColumn(
@@ -403,38 +414,28 @@ increased_teams = [
 ]
 if increased_teams:
     st.session_state.celebrate = increased_teams[0]
-    st.session_state.prev_totals = new_totals
-    safe_rerun()
-else:
-    st.session_state.prev_totals = new_totals
+st.session_state.prev_totals = new_totals
 
-st.write("")
-
-# ============================================================
-# 팀 총합 카드 — 표 입력값 기준 즉시 반영
-# ============================================================
-st.markdown(
-    """<h3 style="font-family:'Baloo 2',sans-serif; color:#3B3A45;">📋 합산 점수 보드</h3>""",
-    unsafe_allow_html=True,
-)
-
-cards_placeholder = st.columns(4)
-for col, team in zip(cards_placeholder, TEAM_NAMES):
-    info = TEAMS[team]
-    total = new_totals[team]
-    with col:
-        st.markdown(
-            f"""
-            <div class="trainer-card" style="--card-accent:{info['accent']}; --card-bg:{info['bg']}; --glow:{info['glow']};">
-                <div class="type-tag">{info['type_kr']}</div>
-                <div class="sprite-wrap"><img class="sprite" src="{info['sprite']}" /></div>
-                <div class="team-name">{team}</div>
-                <div class="score-num">{total}</div>
-                <div class="score-label">TOTAL PTS</div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
+# 위쪽에 미리 만들어둔 합산 점수 보드 컨테이너에 카드 채우기
+# (표 입력값이 반영된 최신 total로 같은 실행 흐름 안에서 즉시 그려짐)
+with score_board_container:
+    cards_placeholder = st.columns(4)
+    for col, team in zip(cards_placeholder, TEAM_NAMES):
+        info = TEAMS[team]
+        total = new_totals[team]
+        with col:
+            st.markdown(
+                f"""
+                <div class="trainer-card" style="--card-accent:{info['accent']}; --card-bg:{info['bg']}; --glow:{info['glow']};">
+                    <div class="type-tag">{info['type_kr']}</div>
+                    <div class="sprite-wrap"><img class="sprite" src="{info['sprite']}" /></div>
+                    <div class="team-name">{team}</div>
+                    <div class="score-num">{total}</div>
+                    <div class="score-label">TOTAL PTS</div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
 
 st.write("")
 st.write("")
