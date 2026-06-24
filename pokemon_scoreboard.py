@@ -1,8 +1,3 @@
-요청하신 문제를 해결하여 **처음부터 끝까지 바로 복사해서 사용하실 수 있는 전체 코드**입니다.
-
-문제가 되었던 `st.data_editor`와 `st.session_state` 간의 간섭 로직을 정리하여, 점수를 입력하면 상단 보드에 실시간으로 끊김 없이 즉시 반영되도록 수정했습니다.
-
-```python
 import streamlit as st
 import streamlit.components.v1 as components
 import pandas as pd
