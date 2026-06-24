@@ -79,6 +79,7 @@ st.markdown(
     html, body, [class^="css"], [class*=" css"] { font-family: 'Poppins', sans-serif; }
 
     .stApp {
+        color-scheme: light;
         background:
             radial-gradient(circle at 12% 8%, rgba(0,184,224,0.16), transparent 40%),
             radial-gradient(circle at 88% 12%, rgba(255,177,0,0.16), transparent 40%),
@@ -234,17 +235,32 @@ st.markdown(
     }
     .stButton button:active { transform: translateY(0px) scale(0.98); }
 
-    /* 점수 입력 표 — 흰색 배경 강제 */
+    /* 점수 입력 표 — 흰색 배경 + 검은 글자 강제
+       (data_editor는 <canvas> 기반 glide-data-grid로 렌더링되어
+       일반 background-color로는 셀 색이 바뀌지 않으므로, 그리드가
+       실제로 참조하는 CSS 변수를 직접 덮어써야 한다) */
     div[data-testid="stDataEditor"] {
+        --gdg-bg-cell: #FFFFFF;
+        --gdg-bg-cell-medium: #FAFAFA;
+        --gdg-bg-header: #FFF6E5;
+        --gdg-bg-header-has-focus: #FFEFCB;
+        --gdg-bg-bubble: #FFFFFF;
+        --gdg-text-dark: #1A1A1A;
+        --gdg-text-medium: #1A1A1A;
+        --gdg-text-light: #4A4A4A;
+        --gdg-text-bubble: #1A1A1A;
+        --gdg-text-header: #3B3A45;
+        --gdg-header-font-color: #3B3A45;
+        --gdg-border-color: rgba(0,0,0,0.10);
+        --gdg-accent-color: #FFB100;
+        --gdg-accent-light: #FFF1CF;
         background: #FFFFFF !important;
         border-radius: 16px !important;
         border: 1px solid rgba(0,0,0,0.08) !important;
         box-shadow: 0 8px 24px rgba(0,0,0,0.06);
         overflow: hidden;
         animation: popIn 0.5s ease-out;
-    }
-    div[data-testid="stDataEditor"] * {
-        background-color: #FFFFFF !important;
+        color-scheme: light;
     }
     div[data-testid="stDataEditor"] [data-testid="stElementToolbar"] {
         background: #FFFFFF !important;
@@ -373,21 +389,27 @@ st.markdown(
     """<h3 style="font-family:'Baloo 2',sans-serif; color:#3B3A45;">📝 라운드별 점수 입력</h3>""",
     unsafe_allow_html=True,
 )
-st.caption("표 하단 ➕ 버튼으로 라운드(행)를 추가하면 번호가 자동으로 이어지고, 점수를 입력하면 위 보드에 바로 합산돼요.")
+st.caption("‘➕ 라운드 추가’ 버튼으로 라운드를 늘리면 번호가 자동으로 이어지고, 빈 칸은 0으로 처리되어 항상 바로 합산돼요.")
 
 column_config = {
     team: st.column_config.NumberColumn(
         f"{TEAMS[team]['type_kr'].split()[0]} · {team}",
         step=1,
         format="%d",
+        min_value=0,
     )
     for team in TEAM_NAMES
 }
 
+# num_rows="dynamic"(표 자체의 + 버튼으로 행 추가)을 쓰면 새로 추가된 행이
+# 모든 칸이 NaN인 상태로 생겨서 ①합산에서 빠지거나 ②인덱스가 불안정해져
+# 입력값이 깜빡이며 사라지는 문제가 있었다.
+# 그래서 행 추가는 아래 "➕ 라운드 추가" 버튼으로만 하고, 표는 고정 크기로
+# 두어 항상 모든 칸이 0으로 채워진 채로 시작하게 한다.
 edited_df = st.data_editor(
     st.session_state.score_df,
     column_config=column_config,
-    num_rows="dynamic",
+    num_rows="fixed",
     use_container_width=True,
     hide_index=False,
     key="score_table_editor",
@@ -398,10 +420,24 @@ edited_df = st.data_editor(
 # 원본 구조는 건드리지 않고 계산용 복사본만 따로 만든다)
 st.session_state.score_df = edited_df
 
-# 합계 계산용 복사본 (원본은 그대로 두고 여기서만 결측값 보정)
+# 합계 계산용 복사본 (혹시 셀을 완전히 지운 경우에만 0으로 보정, 원본은 그대로 둠)
 calc_df = edited_df.copy()
 for team in TEAM_NAMES:
     calc_df[team] = calc_df[team].fillna(0)
+
+round_btn_col, _ = st.columns([1, 3])
+with round_btn_col:
+    if st.button("➕ 라운드 추가", key="add_round_btn", use_container_width=True):
+        next_round = int(st.session_state.score_df.index.max()) + 1
+        new_row = pd.DataFrame(
+            {team: [0] for team in TEAM_NAMES},
+            index=pd.Index([next_round], name="라운드"),
+        )
+        st.session_state.score_df = pd.concat([st.session_state.score_df, new_row])
+        if "score_table_editor" in st.session_state:
+            del st.session_state["score_table_editor"]
+        st.toast(f"🆕 {next_round}라운드 추가!", icon="🎉")
+        safe_rerun()
 
 # ============================================================
 # 총점 계산 (표 입력값 기준으로 즉시 반영)
