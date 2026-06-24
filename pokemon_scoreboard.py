@@ -7,7 +7,6 @@ st.set_page_config(page_title="POKÉMON LEAGUE · SCOREBOARD", page_icon="🌈",
 
 
 def safe_rerun():
-    """Streamlit 버전에 관계없이 안전하게 재실행."""
     if hasattr(st, "rerun"):
         st.rerun()
     elif hasattr(st, "experimental_rerun"):
@@ -15,68 +14,62 @@ def safe_rerun():
 
 
 # ============================================================
-# 팀 설정 — 포켓몬 리그 트레이너 카드 컨셉 (화사한 파스텔 버전)
+# 팀 설정
 # ============================================================
 TEAMS = {
     "BLUE": {
         "accent": "#00B8E0",
-        "accent2": "#7FE3FF",
         "bg": "#E4F8FF",
         "glow": "rgba(0, 184, 224, 0.45)",
-        "pokemon": "",
         "type_kr": "물 타입",
         "sprite": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/7.png",
         "confetti": ["#00B8E0", "#7FE3FF", "#C8F4FF"],
     },
     "GREEN": {
         "accent": "#2FBE6B",
-        "accent2": "#9CF3BE",
         "bg": "#E6FBEE",
         "glow": "rgba(47, 190, 107, 0.45)",
-        "pokemon": "",
         "type_kr": "풀 타입",
         "sprite": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/1.png",
         "confetti": ["#2FBE6B", "#9CF3BE", "#D6FAE3"],
     },
     "RED": {
         "accent": "#FF5C72",
-        "accent2": "#FFA7B5",
         "bg": "#FFEAEE",
         "glow": "rgba(255, 92, 114, 0.45)",
-        "pokemon": "",
         "type_kr": "불 타입",
         "sprite": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/4.png",
         "confetti": ["#FF5C72", "#FFA7B5", "#FFD9DF"],
     },
     "YELLOW": {
         "accent": "#FFB100",
-        "accent2": "#FFDE7A",
         "bg": "#FFF8E1",
         "glow": "rgba(255, 177, 0, 0.45)",
-        "pokemon": "",
         "type_kr": "전기 타입",
         "sprite": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/25.png",
         "confetti": ["#FFB100", "#FFDE7A", "#FFF0BF"],
     },
 }
+TEAM_NAMES = list(TEAMS.keys())
 
-# 하단 배경 장식용 포켓몬 (다양하게)
 DECOR_POKEMON_IDS = [1, 4, 7, 25, 39, 52, 54, 104, 113, 131, 133, 143, 152, 155, 158, 172, 174, 175]
 
 # ============================================================
-# 세션 상태
+# 세션 상태 — 점수 표 (라운드 = 행, 팀 = 열)
 # ============================================================
-if "rounds" not in st.session_state:
-    st.session_state.rounds = 1
-if "scores" not in st.session_state:
-    st.session_state.scores = {team: [0] for team in TEAMS}
+if "score_df" not in st.session_state:
+    st.session_state.score_df = pd.DataFrame(
+        [[0, 0, 0, 0]], columns=TEAM_NAMES, index=["1라운드"]
+    )
+
+if "prev_totals" not in st.session_state:
+    st.session_state.prev_totals = {team: 0 for team in TEAM_NAMES}
+
 if "celebrate" not in st.session_state:
     st.session_state.celebrate = None
-if "active_round" not in st.session_state:
-    st.session_state.active_round = {team: 1 for team in TEAMS}
 
 # ============================================================
-# 전역 스타일 (화사 / 밝은 버전)
+# 전역 스타일
 # ============================================================
 st.markdown(
     """
@@ -96,7 +89,6 @@ st.markdown(
 
     #MainMenu, header, footer { visibility: hidden; }
 
-    /* ---------- 키프레임 ---------- */
     @keyframes floaty { 0%,100%{transform:translateY(0) rotate(0deg);} 50%{transform:translateY(-9px) rotate(2.5deg);} }
     @keyframes floatyBig { 0%,100%{transform:translateY(0px);} 50%{transform:translateY(-16px);} }
     @keyframes pulseGlow { 0%,100%{ filter: drop-shadow(0 0 6px var(--glow)); } 50%{ filter: drop-shadow(0 0 20px var(--glow)); } }
@@ -104,9 +96,7 @@ st.markdown(
     @keyframes titleGrad { 0%,100%{ background-position: 0% 50%; } 50%{ background-position: 100% 50%; } }
     @keyframes popIn { 0%{ transform: scale(0.85); opacity:0; } 60%{ transform: scale(1.04); opacity:1;} 100%{ transform: scale(1); } }
     @keyframes countPulse { 0%{ transform: scale(1.3); } 100%{ transform: scale(1); } }
-    @keyframes driftX { 0%{ transform: translateX(0px); } 50%{ transform: translateX(14px); } 100%{ transform: translateX(0px); } }
 
-    /* ---------- 헤더 ---------- */
     .hero { text-align: center; padding: 26px 10px 16px 10px; }
     .hero-eyebrow {
         font-family: 'Space Mono', monospace;
@@ -136,7 +126,6 @@ st.markdown(
         background: linear-gradient(90deg, #00B8E033, #2FBE6B55, #FFB10055, #FF5C7255, #00B8E033);
     }
 
-    /* ---------- 트레이너 카드 ---------- */
     .trainer-card {
         --glow: #ffffff66;
         position: relative;
@@ -194,8 +183,8 @@ st.markdown(
         letter-spacing: 1px;
         color: #3B3A45;
         margin-top: 4px;
+        margin-bottom: 10px;
     }
-    .trainer-card .poke-sub { font-size: 0.8rem; color: #9A937E; margin-bottom: 8px; }
     .trainer-card .score-num {
         font-family: 'Space Mono', monospace;
         font-weight: 700;
@@ -213,23 +202,6 @@ st.markdown(
         margin-bottom: 10px;
     }
 
-    /* ---------- 라운드 캡슐 ---------- */
-    .round-pill {
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
-        padding: 9px 20px;
-        border-radius: 999px;
-        background: linear-gradient(120deg, #FFFFFF, #FFF6E5);
-        border: 1px solid rgba(0,0,0,0.08);
-        font-family: 'Space Mono', monospace;
-        font-size: 0.85rem;
-        color: #3B3A45;
-        box-shadow: 0 4px 14px rgba(0,0,0,0.06);
-        animation: floaty 3.4s ease-in-out infinite;
-    }
-
-    /* ---------- 순위 카드 ---------- */
     .rank-card {
         border-radius: 18px;
         padding: 14px 8px;
@@ -245,7 +217,6 @@ st.markdown(
     .rank-card .rank-score { font-family: 'Space Mono', monospace; font-size: 1.3rem; margin-top: 2px; color:#3B3A45;}
     .rank-card.is-first { box-shadow: 0 0 30px var(--glow); }
 
-    /* ---------- 버튼 ---------- */
     .stButton button {
         border-radius: 14px !important;
         font-family: 'Poppins', sans-serif !important;
@@ -263,11 +234,20 @@ st.markdown(
     }
     .stButton button:active { transform: translateY(0px) scale(0.98); }
 
-    div[data-baseweb="select"] > div, div[data-testid="stNumberInput"] input {
+    /* 점수 입력 표 — 흰색 배경 강제 */
+    div[data-testid="stDataEditor"] {
         background: #FFFFFF !important;
-        border-radius: 10px !important;
-        border-color: rgba(0,0,0,0.10) !important;
-        color: #3B3A45 !important;
+        border-radius: 16px !important;
+        border: 1px solid rgba(0,0,0,0.08) !important;
+        box-shadow: 0 8px 24px rgba(0,0,0,0.06);
+        overflow: hidden;
+        animation: popIn 0.5s ease-out;
+    }
+    div[data-testid="stDataEditor"] * {
+        background-color: #FFFFFF !important;
+    }
+    div[data-testid="stDataEditor"] [data-testid="stElementToolbar"] {
+        background: #FFFFFF !important;
     }
 
     section[data-testid="stDataFrame"] {
@@ -276,7 +256,6 @@ st.markdown(
         border: 1px solid rgba(0,0,0,0.08);
     }
 
-    /* ---------- 하단 포켓몬 배경 장식 띠 ---------- */
     .poke-decor-wrap {
         position: relative;
         margin-top: 36px;
@@ -333,7 +312,7 @@ st.markdown(
     <div class="hero">
         <div class="hero-eyebrow">TRAINER SCORE TRACKER</div>
         <h1>🌈 POKÉMON LEAGUE 🌈</h1>
-        <div class="hero-sub">라운드별 점수를 기록하고 챔피언을 가려보세요</div>
+        <div class="hero-sub">표에 라운드별 점수를 입력하면 총합 보드에 바로 반영돼요</div>
         <div class="hero-divider"></div>
     </div>
     """,
@@ -341,7 +320,7 @@ st.markdown(
 )
 
 # ============================================================
-# 컨페티 (점수 등록 시)
+# 컨페티 (총점이 오른 경우 자동 발동)
 # ============================================================
 if st.session_state.celebrate:
     team = st.session_state.celebrate
@@ -349,7 +328,6 @@ if st.session_state.celebrate:
     components.html(
         f"""
         <script src="https://cdnjs.cloudflare.com/ajax/libs/canvas-confetti/1.9.2/confetti.browser.min.js"></script>
-        <div id="confetti-root" style="height:0;"></div>
         <script>
         function fire() {{
             if (typeof confetti !== 'function') {{ setTimeout(fire, 80); return; }}
@@ -367,7 +345,7 @@ if st.session_state.celebrate:
         f"""
         <div style="text-align:center; margin-top:-6px; animation: popIn 0.5s ease-out;">
             <span style="font-family:'Baloo 2',sans-serif; font-size:1.3rem; color:{TEAMS[team]['accent']};">
-                ✨ {team} 팀 점수 등록 완료! ✨
+                ✨ {team} 팀 점수 업데이트! ✨
             </span>
         </div>
         """,
@@ -378,12 +356,14 @@ if st.session_state.celebrate:
 st.write("")
 
 # ============================================================
-# 팀 카드 + 입력
+# 팀 총합 카드 (자리 표시 — 아래 표 입력값 기준으로 갱신)
 # ============================================================
-cols = st.columns(4)
+totals = st.session_state.score_df[TEAM_NAMES].sum()
 
-for col, (team, info) in zip(cols, TEAMS.items()):
-    total = sum(st.session_state.scores[team])
+cards_placeholder = st.columns(4)
+for col, team in zip(cards_placeholder, TEAM_NAMES):
+    info = TEAMS[team]
+    total = int(totals[team])
     with col:
         st.markdown(
             f"""
@@ -391,7 +371,6 @@ for col, (team, info) in zip(cols, TEAMS.items()):
                 <div class="type-tag">{info['type_kr']}</div>
                 <div class="sprite-wrap"><img class="sprite" src="{info['sprite']}" /></div>
                 <div class="team-name">{team}</div>
-                <div class="poke-sub">{info['pokemon']} 팀</div>
                 <div class="score-num">{total}</div>
                 <div class="score-label">TOTAL PTS</div>
             </div>
@@ -399,87 +378,76 @@ for col, (team, info) in zip(cols, TEAMS.items()):
             unsafe_allow_html=True,
         )
 
-        st.write("")
-
-        # 라운드 수가 늘어나면 옵션 목록도 항상 새로 계산됨
-        round_options = list(range(1, st.session_state.rounds + 1))
-
-        # 현재 라운드 수보다 큰 값이 저장돼 있으면 보정
-        if st.session_state.active_round[team] > st.session_state.rounds:
-            st.session_state.active_round[team] = st.session_state.rounds
-
-        sel_round = st.selectbox(
-            "라운드",
-            round_options,
-            key=f"round_select_{team}",
-            index=round_options.index(st.session_state.active_round[team])
-            if st.session_state.active_round[team] in round_options
-            else len(round_options) - 1,
-            label_visibility="collapsed",
-        )
-        st.session_state.active_round[team] = sel_round
-
-        score_input = st.number_input(
-            f"{sel_round}R 점수",
-            value=int(st.session_state.scores[team][sel_round - 1]),
-            step=1,
-            key=f"score_input_{team}_{sel_round}",
-        )
-
-        if st.button("⚡ 점수 등록", key=f"submit_{team}", use_container_width=True):
-            st.session_state.scores[team][sel_round - 1] = score_input
-            st.session_state.celebrate = team
-            with st.spinner("반영 중..."):
-                time.sleep(0.3)
-            safe_rerun()
-
 st.write("")
 st.write("")
 
 # ============================================================
-# 컨트롤
+# 점수 입력 표 (라운드별 행, 팀별 열) — 흰 배경
 # ============================================================
-control_cols = st.columns([1, 1, 2])
+st.markdown(
+    """<h3 style="font-family:'Baloo 2',sans-serif; color:#3B3A45;">📝 라운드별 점수 입력</h3>""",
+    unsafe_allow_html=True,
+)
+st.caption("표의 ➕ 버튼으로 라운드를 추가하고, 셀을 클릭해 점수를 입력하면 위 보드에 바로 반영돼요.")
 
-with control_cols[0]:
-    if st.button("➕ 새 라운드", use_container_width=True, key="add_round_btn"):
-        st.session_state.rounds += 1
-        for team in TEAMS:
-            st.session_state.scores[team].append(0)
-            st.session_state.active_round[team] = st.session_state.rounds
-        st.toast(f"🆕 ROUND {st.session_state.rounds} 추가!", icon="🎉")
-        safe_rerun()
-
-with control_cols[1]:
-    if st.button("🔄 초기화", use_container_width=True, key="reset_btn"):
-        st.session_state.rounds = 1
-        st.session_state.scores = {team: [0] for team in TEAMS}
-        st.session_state.active_round = {team: 1 for team in TEAMS}
-        st.session_state.celebrate = None
-        st.toast("점수판이 초기화되었어요", icon="🧹")
-        safe_rerun()
-
-with control_cols[2]:
-    st.markdown(
-        f"""
-        <div style="text-align:right;">
-            <span class="round-pill">📍 ROUND {st.session_state.rounds} / 진행 중</span>
-        </div>
-        """,
-        unsafe_allow_html=True,
+column_config = {
+    team: st.column_config.NumberColumn(
+        f"{TEAMS[team]['type_kr'].split()[0]} · {team}",
+        step=1,
+        format="%d",
     )
+    for team in TEAM_NAMES
+}
 
+edited_df = st.data_editor(
+    st.session_state.score_df,
+    column_config=column_config,
+    num_rows="dynamic",
+    use_container_width=True,
+    key="score_table_editor",
+)
+
+# 결측값(새 행 추가 시 NaN) 보정
+edited_df = edited_df.fillna(0)
+for team in TEAM_NAMES:
+    edited_df[team] = edited_df[team].astype(int)
+
+# 라운드 이름이 비어 있으면 자동 채움
+new_index = []
+for i, idx in enumerate(edited_df.index):
+    if pd.isna(idx) or str(idx).strip() == "":
+        new_index.append(f"{i+1}라운드")
+    else:
+        new_index.append(idx)
+edited_df.index = new_index
+
+st.session_state.score_df = edited_df
+
+# ============================================================
+# 총점 변화 감지 → 컨페티 트리거
+# ============================================================
+new_totals = {team: int(edited_df[team].sum()) for team in TEAM_NAMES}
+increased_teams = [
+    team for team in TEAM_NAMES
+    if new_totals[team] > st.session_state.prev_totals.get(team, 0)
+]
+if increased_teams:
+    st.session_state.celebrate = increased_teams[0]
+    st.session_state.prev_totals = new_totals
+    safe_rerun()
+else:
+    st.session_state.prev_totals = new_totals
+
+# ============================================================
+# 챔피언십 순위
+# ============================================================
 st.write("")
 st.markdown(
     """<h3 style="font-family:'Baloo 2',sans-serif; color:#3B3A45;">🏆 챔피언십 순위</h3>""",
     unsafe_allow_html=True,
 )
 
-ranking = sorted(
-    [(team, sum(scores)) for team, scores in st.session_state.scores.items()],
-    key=lambda x: x[1],
-    reverse=True,
-)
+ranking = sorted(new_totals.items(), key=lambda x: x[1], reverse=True)
 medal = ["🥇", "🥈", "🥉", "🎗️"]
 
 rank_cols = st.columns(4)
@@ -498,17 +466,18 @@ for i, (team, total) in enumerate(ranking):
             unsafe_allow_html=True,
         )
 
+# ============================================================
+# 초기화 버튼
+# ============================================================
 st.write("")
-st.markdown(
-    """<h3 style="font-family:'Baloo 2',sans-serif; color:#3B3A45;">📊 라운드별 기록</h3>""",
-    unsafe_allow_html=True,
-)
-
-table_data = {f"{team}": st.session_state.scores[team] for team in TEAMS}
-df = pd.DataFrame(table_data)
-df.index = [f"R{i+1}" for i in range(st.session_state.rounds)]
-df.loc["TOTAL"] = df.sum()
-st.dataframe(df, use_container_width=True)
+if st.button("🔄 전체 초기화", key="reset_btn"):
+    st.session_state.score_df = pd.DataFrame(
+        [[0, 0, 0, 0]], columns=TEAM_NAMES, index=["1라운드"]
+    )
+    st.session_state.prev_totals = {team: 0 for team in TEAM_NAMES}
+    st.session_state.celebrate = None
+    st.toast("점수판이 초기화되었어요", icon="🧹")
+    safe_rerun()
 
 # ============================================================
 # 하단 배경 장식 — 다양한 포켓몬들
