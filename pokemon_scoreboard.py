@@ -59,7 +59,7 @@ DECOR_POKEMON_IDS = [1, 4, 7, 25, 39, 52, 54, 104, 113, 131, 133, 143, 152, 155,
 # ============================================================
 if "score_df" not in st.session_state:
     st.session_state.score_df = pd.DataFrame(
-        [[0, 0, 0, 0]], columns=TEAM_NAMES, index=[1]
+        {"라운드": [1], **{team: [0] for team in TEAM_NAMES}}
     )
 
 if "prev_totals" not in st.session_state:
@@ -376,30 +376,37 @@ st.markdown(
 st.caption("표 아래 ➕ 버튼으로 라운드(행)를 추가하면 번호가 자동으로 채워지고, 점수를 입력하면 위 보드에 바로 합산돼요.")
 
 column_config = {
-    team: st.column_config.NumberColumn(
-        f"{TEAMS[team]['type_kr'].split()[0]} · {team}",
-        step=1,
+    "라운드": st.column_config.NumberColumn(
+        "라운드",
+        disabled=True,
         format="%d",
-    )
-    for team in TEAM_NAMES
+    ),
+    **{
+        team: st.column_config.NumberColumn(
+            f"{TEAMS[team]['type_kr'].split()[0]} · {team}",
+            step=1,
+            format="%d",
+        )
+        for team in TEAM_NAMES
+    },
 }
 
 edited_df = st.data_editor(
     st.session_state.score_df,
     column_config=column_config,
+    column_order=["라운드"] + TEAM_NAMES,
     num_rows="dynamic",
     use_container_width=True,
+    hide_index=True,
     key="score_table_editor",
 )
 
-# 결측값(새 행 추가 시 NaN) 보정
-edited_df = edited_df.fillna(0)
+# 결측값(새 행 추가 시 NaN) 보정 + 라운드 번호 항상 1부터 순서대로 자동 채움
+edited_df = edited_df.reset_index(drop=True)
 for team in TEAM_NAMES:
-    edited_df[team] = edited_df[team].astype(int)
-
-# 라운드 번호는 항상 1부터 순서대로 자동 채움 (숫자만)
-edited_df.index = range(1, len(edited_df) + 1)
-edited_df.index.name = "라운드"
+    edited_df[team] = edited_df[team].fillna(0).astype(int)
+edited_df["라운드"] = range(1, len(edited_df) + 1)
+edited_df = edited_df[["라운드"] + TEAM_NAMES]
 
 st.session_state.score_df = edited_df
 
@@ -474,8 +481,10 @@ for i, (team, total) in enumerate(ranking):
 st.write("")
 if st.button("🔄 전체 초기화", key="reset_btn"):
     st.session_state.score_df = pd.DataFrame(
-        [[0, 0, 0, 0]], columns=TEAM_NAMES, index=["1라운드"]
+        {"라운드": [1], **{team: [0] for team in TEAM_NAMES}}
     )
+    if "score_table_editor" in st.session_state:
+        del st.session_state["score_table_editor"]
     st.session_state.prev_totals = {team: 0 for team in TEAM_NAMES}
     st.session_state.celebrate = None
     st.toast("점수판이 초기화되었어요", icon="🧹")
