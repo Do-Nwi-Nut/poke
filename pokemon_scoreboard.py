@@ -59,7 +59,7 @@ DECOR_POKEMON_IDS = [1, 4, 7, 25, 39, 52, 54, 104, 113, 131, 133, 143, 152, 155,
 # ============================================================
 if "score_df" not in st.session_state:
     st.session_state.score_df = pd.DataFrame(
-        [[0, 0, 0, 0]], columns=TEAM_NAMES, index=["1라운드"]
+        [[0, 0, 0, 0]], columns=TEAM_NAMES, index=[1]
     )
 
 if "prev_totals" not in st.session_state:
@@ -164,7 +164,7 @@ st.markdown(
         font-weight: 700;
     }
     .trainer-card .sprite-wrap {
-        width: 92px; height: 92px;
+        width: 150px; height: 150px;
         margin: 6px auto 2px auto;
         border-radius: 50%;
         background: radial-gradient(circle, var(--card-bg) 0%, transparent 72%);
@@ -172,7 +172,7 @@ st.markdown(
         animation: pulseGlow 2.4s ease-in-out infinite;
     }
     .trainer-card img.sprite {
-        width: 78px; height: 78px;
+        width: 132px; height: 132px;
         image-rendering: pixelated;
         animation: floaty 2.8s ease-in-out infinite;
     }
@@ -279,12 +279,12 @@ st.markdown(
         display: flex;
         justify-content: center;
         flex-wrap: wrap;
-        gap: 6px 2px;
+        gap: 10px 6px;
         padding: 0 10px;
     }
     .poke-decor-row img {
-        width: 56px;
-        height: 56px;
+        width: 96px;
+        height: 96px;
         image-rendering: pixelated;
         opacity: 0.92;
         filter: drop-shadow(0 4px 6px rgba(0,0,0,0.10));
@@ -356,39 +356,13 @@ if st.session_state.celebrate:
 st.write("")
 
 # ============================================================
-# 팀 총합 카드 (자리 표시 — 아래 표 입력값 기준으로 갱신)
-# ============================================================
-totals = st.session_state.score_df[TEAM_NAMES].sum()
-
-cards_placeholder = st.columns(4)
-for col, team in zip(cards_placeholder, TEAM_NAMES):
-    info = TEAMS[team]
-    total = int(totals[team])
-    with col:
-        st.markdown(
-            f"""
-            <div class="trainer-card" style="--card-accent:{info['accent']}; --card-bg:{info['bg']}; --glow:{info['glow']};">
-                <div class="type-tag">{info['type_kr']}</div>
-                <div class="sprite-wrap"><img class="sprite" src="{info['sprite']}" /></div>
-                <div class="team-name">{team}</div>
-                <div class="score-num">{total}</div>
-                <div class="score-label">TOTAL PTS</div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
-st.write("")
-st.write("")
-
-# ============================================================
-# 점수 입력 표 (라운드별 행, 팀별 열) — 흰 배경
+# 점수 입력 표 (라운드별 행, 팀별 열) — 흰 배경, 라운드 번호 자동
 # ============================================================
 st.markdown(
     """<h3 style="font-family:'Baloo 2',sans-serif; color:#3B3A45;">📝 라운드별 점수 입력</h3>""",
     unsafe_allow_html=True,
 )
-st.caption("표의 ➕ 버튼으로 라운드를 추가하고, 셀을 클릭해 점수를 입력하면 위 보드에 바로 반영돼요.")
+st.caption("표 아래 ➕ 버튼으로 라운드(행)를 추가하면 번호가 자동으로 채워지고, 점수를 입력하면 바로 합산돼요.")
 
 column_config = {
     team: st.column_config.NumberColumn(
@@ -412,21 +386,17 @@ edited_df = edited_df.fillna(0)
 for team in TEAM_NAMES:
     edited_df[team] = edited_df[team].astype(int)
 
-# 라운드 이름이 비어 있으면 자동 채움
-new_index = []
-for i, idx in enumerate(edited_df.index):
-    if pd.isna(idx) or str(idx).strip() == "":
-        new_index.append(f"{i+1}라운드")
-    else:
-        new_index.append(idx)
-edited_df.index = new_index
+# 라운드 번호는 항상 1부터 순서대로 자동 채움 (숫자만)
+edited_df.index = range(1, len(edited_df) + 1)
+edited_df.index.name = "라운드"
 
 st.session_state.score_df = edited_df
 
 # ============================================================
-# 총점 변화 감지 → 컨페티 트리거
+# 총점 계산 (표 입력값 기준으로 즉시 반영)
 # ============================================================
 new_totals = {team: int(edited_df[team].sum()) for team in TEAM_NAMES}
+
 increased_teams = [
     team for team in TEAM_NAMES
     if new_totals[team] > st.session_state.prev_totals.get(team, 0)
@@ -437,6 +407,37 @@ if increased_teams:
     safe_rerun()
 else:
     st.session_state.prev_totals = new_totals
+
+st.write("")
+
+# ============================================================
+# 팀 총합 카드 — 표 입력값 기준 즉시 반영
+# ============================================================
+st.markdown(
+    """<h3 style="font-family:'Baloo 2',sans-serif; color:#3B3A45;">📋 합산 점수 보드</h3>""",
+    unsafe_allow_html=True,
+)
+
+cards_placeholder = st.columns(4)
+for col, team in zip(cards_placeholder, TEAM_NAMES):
+    info = TEAMS[team]
+    total = new_totals[team]
+    with col:
+        st.markdown(
+            f"""
+            <div class="trainer-card" style="--card-accent:{info['accent']}; --card-bg:{info['bg']}; --glow:{info['glow']};">
+                <div class="type-tag">{info['type_kr']}</div>
+                <div class="sprite-wrap"><img class="sprite" src="{info['sprite']}" /></div>
+                <div class="team-name">{team}</div>
+                <div class="score-num">{total}</div>
+                <div class="score-label">TOTAL PTS</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+st.write("")
+st.write("")
 
 # ============================================================
 # 챔피언십 순위
