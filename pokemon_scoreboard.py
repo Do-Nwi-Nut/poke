@@ -1,3 +1,8 @@
+요청하신 문제를 해결하여 **처음부터 끝까지 바로 복사해서 사용하실 수 있는 전체 코드**입니다.
+
+문제가 되었던 `st.data_editor`와 `st.session_state` 간의 간섭 로직을 정리하여, 점수를 입력하면 상단 보드에 실시간으로 끊김 없이 즉시 반영되도록 수정했습니다.
+
+```python
 import streamlit as st
 import streamlit.components.v1 as components
 import pandas as pd
@@ -235,10 +240,6 @@ st.markdown(
     }
     .stButton button:active { transform: translateY(0px) scale(0.98); }
 
-    /* 점수 입력 표 — 흰색 배경 + 검은 글자 강제
-       (data_editor는 <canvas> 기반 glide-data-grid로 렌더링되어
-       일반 background-color로는 셀 색이 바뀌지 않으므로, 그리드가
-       실제로 참조하는 CSS 변수를 직접 덮어써야 한다) */
     div[data-testid="stDataEditor"] {
         --gdg-bg-cell: #FFFFFF;
         --gdg-bg-cell-medium: #FAFAFA;
@@ -401,11 +402,7 @@ column_config = {
     for team in TEAM_NAMES
 }
 
-# num_rows="dynamic"(표 자체의 + 버튼으로 행 추가)을 쓰면 새로 추가된 행이
-# 모든 칸이 NaN인 상태로 생겨서 ①합산에서 빠지거나 ②인덱스가 불안정해져
-# 입력값이 깜빡이며 사라지는 문제가 있었다.
-# 그래서 행 추가는 아래 "➕ 라운드 추가" 버튼으로만 하고, 표는 고정 크기로
-# 두어 항상 모든 칸이 0으로 채워진 채로 시작하게 한다.
+# [수정 부분] 원본 score_df 기반으로 에디터를 열되, 매 루프마다 덮어쓰지 않습니다.
 edited_df = st.data_editor(
     st.session_state.score_df,
     column_config=column_config,
@@ -415,12 +412,7 @@ edited_df = st.data_editor(
     key="score_table_editor",
 )
 
-# 편집 결과를 그대로 저장 (인덱스/타입을 매번 새로 만들면 입력 중인 값이
-# 초기화되어 깜빡이거나 한 번 더 입력해야 반영되는 문제가 생기므로,
-# 원본 구조는 건드리지 않고 계산용 복사본만 따로 만든다)
-st.session_state.score_df = edited_df
-
-# 합계 계산용 복사본 (혹시 셀을 완전히 지운 경우에만 0으로 보정, 원본은 그대로 둠)
+# 합계 계산 및 실시간 반영을 위한 복사본 생성 (빈 셀 방지)
 calc_df = edited_df.copy()
 for team in TEAM_NAMES:
     calc_df[team] = calc_df[team].fillna(0)
@@ -428,12 +420,13 @@ for team in TEAM_NAMES:
 round_btn_col, _ = st.columns([1, 3])
 with round_btn_col:
     if st.button("➕ 라운드 추가", key="add_round_btn", use_container_width=True):
-        next_round = int(st.session_state.score_df.index.max()) + 1
+        # [수정 부분] 라운드를 늘릴 때는 지금까지 편집된 최신 값을 영구 소장 후 행을 덧붙입니다.
+        next_round = int(calc_df.index.max()) + 1
         new_row = pd.DataFrame(
             {team: [0] for team in TEAM_NAMES},
             index=pd.Index([next_round], name="라운드"),
         )
-        st.session_state.score_df = pd.concat([st.session_state.score_df, new_row])
+        st.session_state.score_df = pd.concat([calc_df, new_row])
         if "score_table_editor" in st.session_state:
             del st.session_state["score_table_editor"]
         st.toast(f"🆕 {next_round}라운드 추가!", icon="🎉")
@@ -453,7 +446,6 @@ if increased_teams:
 st.session_state.prev_totals = new_totals
 
 # 위쪽에 미리 만들어둔 합산 점수 보드 컨테이너에 카드 채우기
-# (표 입력값이 반영된 최신 total로 같은 실행 흐름 안에서 즉시 그려짐)
 with score_board_container:
     cards_placeholder = st.columns(4)
     for col, team in zip(cards_placeholder, TEAM_NAMES):
@@ -544,3 +536,5 @@ st.markdown(
     """<div class="footer-note">🌈 POKÉMON LEAGUE SCOREBOARD · GOOD LUCK TRAINERS 🌈</div>""",
     unsafe_allow_html=True,
 )
+
+```
